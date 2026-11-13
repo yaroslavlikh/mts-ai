@@ -192,4 +192,14 @@ class Retriever:
                 if size + length <= char_budget:
                     add(extra, c)
                     size += length
-        return main + extra + rules
+        # Include direct parent sections as a group when a retrieved subsection depends on them.
+        parents = []
+        for c in main:
+            parts = c.path.split(" > ")
+            for n in range(1, len(parts)):
+                path = " > ".join(parts[:n])
+                group = [x for x in self.kb.chunks if x.doc == c.doc and x.path == path and x.id not in seen]
+                if sum(len(x.render()) for x in main + parents + rules) + sum(len(x.render()) for x in group) <= char_budget:
+                    for x in group:
+                        add(parents, x)
+        return main + parents + extra + rules

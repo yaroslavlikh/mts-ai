@@ -149,7 +149,7 @@ class Api:
             "enable_thinking": {"enable_thinking": False},  # Alibaba DashScope
         }.get(self.thinking_param, {})
 
-    def chat(self, messages: list, max_tokens: int | None = None, temperature: float | None = None) -> str:
+    def chat(self, messages: list, max_tokens: int | None = None, temperature: float | None = None, final_reasoning: bool = False, observe_final: bool = False) -> str:
         body = {
             "model": self.llm_model,
             "messages": messages,
@@ -157,12 +157,16 @@ class Api:
             "temperature": self.temperature if temperature is None else temperature,
             **self._thinking_fields(),
         }
+        if final_reasoning:
+            body.pop("chat_template_kwargs", None)
+            body["reasoning"] = {"enabled": True}
+            body["provider"] = {"require_parameters": True}
         try:
             data = self._post(self.base_url + "/chat/completions", self.llm_key, body)
         except httpx.HTTPStatusError as exc:
             # Сервер не знает параметр отключения размышлений — больше его не шлём.
             extra = set(self._thinking_fields())
-            if extra and exc.response is not None and exc.response.status_code in (400, 422):
+            if not final_reasoning and extra and exc.response is not None and exc.response.status_code in (400, 422):
                 print(f"[llm] сервер отклонил {sorted(extra)}, отправляем без него", file=sys.stderr)
                 self._thinking_param_ok = False
                 for key in extra:
@@ -171,6 +175,11 @@ class Api:
             else:
                 raise
         choice = data["choices"][0]
+        if final_reasoning or observe_final:
+            usage = data.get("usage") or {}
+            details = usage.get("completion_tokens_details") or {}
+            message = choice.get("message") or {}
+            print(f"[final-thinking] reasoning_tokens={details.get('reasoning_tokens', 'unknown')} reasoning_field={bool(message.get('reasoning') or message.get('reasoning_content') or message.get('reasoning_details'))} finish={choice.get('finish_reason')} completion_tokens={usage.get('completion_tokens', 'unknown')}", file=sys.stderr)
         text = strip_thinking(choice["message"].get("content") or "")
         truncated = choice.get("finish_reason") == "length"
         if (not text or truncated) and self._ran_out_thinking(choice, data):

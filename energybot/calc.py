@@ -140,13 +140,13 @@ def extract_parameters(operation: str, text: str) -> dict:
             params["station_type"] = "grid"
         if re.search(r"скатн", text, re.I):
             params["placement"] = "pitched_roof"
-        elif re.search(r"плоск\w*\s+(?:кровл|крыш)", text, re.I):
+        elif re.search(r"плоск.*кровл", text, re.I):
             params["placement"] = "flat_roof"
         elif re.search(r"земл", text, re.I):
             params["placement"] = "ground"
         elif re.search(r"фасад|вертикаль", text, re.I):
             params["placement"] = "facade"
-        elif re.search(r"кровл|крыш", text, re.I):
+        elif re.search(r"кровл", text, re.I):
             params["placement"] = "rooftop"
     if operation in ("simple_payback", "platform_indicative_cost"):
         params["explicit_scenario"] = bool(re.search(
@@ -272,8 +272,7 @@ def calculate(request: dict) -> dict:
                 return _needs(operation, missing)
             station = str(params["station_type"]).lower()
             placement = str(params["placement"]).lower()
-            if station not in ("grid", "сетевая", "сетевой", "network") or placement not in (
-                    "rooftop", "roof", "кровля", "pitched_roof", "flat_roof"):
+            if station not in ("grid", "сетевая", "сетевой", "network") or placement not in ("rooftop", "roof", "кровля"):
                 return _unsupported(operation, "Ориентир 70 ₽/Вт применим только к типовой сетевой станции на кровле; гибрид, земля и фасад требуют проектного расчёта.")
             kw = _power(params)
             if kw < 15 or kw > 500:
